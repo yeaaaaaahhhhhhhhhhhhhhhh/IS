@@ -1,48 +1,49 @@
-from forex_python.converter import CurrencyRates
+from easy_exchange_rates import API
+from datetime import date
+from datetime import date, timedelta
 import smtplib
 from email.message import EmailMessage
-import traceback
-import time
+from bs4 import BeautifulSoup
+import requests
 
+url = "https://www.investing.com/currencies/eur-usd-news"
 
-EMAIL_SENDER = 'rhiodelacruz0717@gmail.com'      
-EMAIL_PASSWORD = 'uqftddxkaxqtiuil'          
-EMAIL_RECEIVER = 'rhiodelacruz032723@gmail.com'      
-THRESHOLD_RATE = 53.00                            
-CHECK_INTERVAL_SECONDS = 300                      
+response = requests.get(url)
+soup = BeautifulSoup(response.content, 'html.parser')
 
-def send_email_alert(rate):
-    msg = EmailMessage()
-    msg['Subject'] = '🚨 USD Rate Alert!'
-    msg['From'] = EMAIL_SENDER
-    msg['To'] = EMAIL_RECEIVER
-    msg.set_content(f"📈 USD to PHP is now ₱{rate:.2f}.\n\nCheck now if you want to act.")
+headlines = soup.findAll("a", attrs={"class":"block text-base font-bold leading-5 hover:underline sm:text-base sm:leading-6 md:text-lg md:leading-7"})
+time = soup.findAll("time", attrs={"class":"ml-2"})
 
-    try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-            smtp.login(EMAIL_SENDER, EMAIL_PASSWORD)
-            smtp.send_message(msg)
-        print(f"[EMAIL SENT] USD to PHP = ₱{rate:.2f}")
-    except Exception:
-        print("[ ERROR] Failed to send email:")
-        traceback.print_exc()
+sender_email = "4einexchange@gmail.com"
+sender_password = "khhp psic nkxq owab"
+receiver_email = "rjdonato528@gmail.com"
+subject = "Foreign Exchange Rate for EUR to USD"
 
-def check_usd_to_php():
-    try:
-        c = CurrencyRates()
-        rate = c.get_rate('USD', 'PHP')
-        print(f"[INFO] USD to PHP = ₱{rate:.2f}")
-        if rate >= THRESHOLD_RATE:
-            print(f"[ALERT] Rate hit ₱{rate:.2f}, sending email...")
-            send_email_alert(rate)
-        else:
-            print(f"[OK] Rate ₱{rate:.2f} is below threshold ₱{THRESHOLD_RATE:.2f}")
-    except Exception:
-        print("[ ERROR] Failed to check exchange rate:")
-        traceback.print_exc()
+msg = EmailMessage()
 
+today = date.today()
+yesterday = today - timedelta(days=5)
 
-print("[RUNNING] Auto-checking USD to PHP every 5 minutes...\n")
-while True:
-    check_usd_to_php()
-    time.sleep(CHECK_INTERVAL_SECONDS)
+api = API()
+df = api.get_exchange_rates(
+  base_currency="EUR", 
+  start_date=yesterday,
+  end_date=today,
+  targets=["USD","EUR"]
+)
+
+print("Latest News: \n")
+
+for i in (headlines):
+    print(f'{i.text}')
+    print(f'{i['href']}\n')
+
+rate = df.head(5)
+text = f"Subject: {subject} {rate} \n Latest News: \n"
+
+server = smtplib.SMTP("smtp.gmail.com", 587)
+server.starttls()
+server.login(sender_email, sender_password)
+server.sendmail(sender_email, receiver_email, text)
+
+print("Email has been sent to " + receiver_email)
